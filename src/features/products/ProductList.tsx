@@ -14,7 +14,12 @@ const ProductList: React.FC<Props> = ({ useRtkQuery }) => {
   const { items: sliceItems, status, error, searchQuery, selectedCategory } = useAppSelector((state) => state.products);
   
   // RTK Query hook
-  const { data: rtkItems, isLoading: isRtkLoading, error: rtkError } = useGetProductsQuery(undefined, {
+  const {
+    data: rtkItems,
+    isLoading: isRtkLoading,
+    error: rtkError,
+    refetch,
+  } = useGetProductsQuery(undefined, {
     skip: !useRtkQuery // Bỏ qua nếu không dùng RTK Query
   });
 
@@ -25,10 +30,13 @@ const ProductList: React.FC<Props> = ({ useRtkQuery }) => {
     }
   }, [status, dispatch, useRtkQuery]);
 
-  // Hợp nhất data & status
+  // Hợp nhất data & status (memo để useMemo filter ổn định, hết warning lint)
   const isLoading = useRtkQuery ? isRtkLoading : (status === 'loading' || status === 'idle');
   const hasError = useRtkQuery ? !!rtkError : !!error;
-  const rawItems = useRtkQuery ? (rtkItems || []) : sliceItems;
+  const rawItems = useMemo(
+    () => (useRtkQuery ? (rtkItems ?? []) : sliceItems),
+    [useRtkQuery, rtkItems, sliceItems]
+  );
 
   // Lọc sản phẩm
   const filteredProducts = useMemo(() => {
@@ -52,10 +60,24 @@ const ProductList: React.FC<Props> = ({ useRtkQuery }) => {
   }
 
   if (hasError) {
+    const message = useRtkQuery
+      ? 'Không tải được sản phẩm từ FakeStoreAPI. Kiểm tra mạng rồi thử lại.'
+      : error || 'Đã có lỗi xảy ra khi tải sản phẩm!';
     return (
       <div className="error-state">
         <h2>Đã có lỗi xảy ra khi tải sản phẩm!</h2>
-        <button onClick={() => !useRtkQuery && dispatch(fetchProducts())}>Thử lại</button>
+        <p>{message}</p>
+        <button
+          onClick={() => {
+            if (useRtkQuery) {
+              void refetch();
+            } else {
+              dispatch(fetchProducts());
+            }
+          }}
+        >
+          Thử lại
+        </button>
       </div>
     );
   }
@@ -86,13 +108,31 @@ const ProductList: React.FC<Props> = ({ useRtkQuery }) => {
       </div>
       
       {filteredProducts.length === 0 ? (
-        <div className="empty-state">Không tìm thấy sản phẩm nào.</div>
-      ) : (
-        <div className="products-grid">
-          {filteredProducts.map(product => (
-            <ProductCard key={product.id} product={product} />
-          ))}
+        <div className="empty-state">
+          <p>Không tìm thấy sản phẩm nào.</p>
+          {(searchQuery || selectedCategory !== 'all') && (
+            <button
+              className="clear-filter-btn"
+              onClick={() => {
+                dispatch(setSearchQuery(''));
+                dispatch(setSelectedCategory('all'));
+              }}
+            >
+              Xoá bộ lọc
+            </button>
+          )}
         </div>
+      ) : (
+        <>
+          <p className="result-count">
+            Hiển thị {filteredProducts.length}/{rawItems.length} sản phẩm
+          </p>
+          <div className="products-grid">
+            {filteredProducts.map(product => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

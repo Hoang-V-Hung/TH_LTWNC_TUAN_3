@@ -22,5 +22,14 @@ Toàn bộ logic được chia thành các thư mục độc lập theo nghiệp
 - **Lợi ích**: Tự động quản lý cache, deduplication request, trạng thái loading/error mà không cần phải viết thêm logic trong Slice hay Thunk. Trải nghiệm trên UI được biểu diễn trực quan qua nút Toggle chuyển đổi trên Navbar.
 
 ## 4. Typed Hooks (`useAppDispatch`, `useAppSelector`)
-- Định nghĩa trong `app/hooks.ts`.
+- Định nghĩa trong `app/hooks.ts` bằng pattern `withTypes` của react-redux v9.
 - **Tại sao?**: Thay vì mỗi lần dùng `useSelector` phải import `RootState` và gõ type cho `state`, hay `useDispatch` thiếu type cho thunk actions; việc bọc lại 2 hook này giúp toàn bộ component tự động nhận dạng kiểu dữ liệu an toàn 100% (Type-safe). Tuyệt đối không có bất kỳ component nào import trực tiếp cấu trúc cũ từ `react-redux`.
+
+## 5. Nâng cấp nghiệp vụ & UI (bản cải tiến)
+- **Persist giỏ hàng** (`app/store.ts`): `preloadedState` + `store.subscribe()` lưu `items/discount` vào `localStorage` (`ltwnc-cart-v1`), reload không mất giỏ; `isOpen` luôn reset `false`.
+- **RTK Query thật** (`productsApi.ts`): `fetchBaseQuery('https://fakestoreapi.com/')` + `query: () => 'products'` + `transformResponse attachStock()` để có cache/dedup/refetch đúng nghĩa; `fetchProducts` thunk cũng gọi API thật trước, fallback `mockData` khi offline.
+- **Phản hồi tồn kho** (`cartSlice`): vượt kho không còn im lặng — `lastWarning` hiển thị qua `Toast` toàn cục (tự tắt 3.5s); `updateQuantity` tự clamp về `stock`.
+- **Mã giảm giá có lỗi rõ ràng**: `discountError` hiển thị inline (mã sai, bỏ trống), thay vì clear im lặng.
+- **Drawer mượt**: giữ mount + class `open/visible`, đóng bằng Escape, khoá scroll nền, có nút "Xoá hết" và badge số lượng.
+- **Thanh toán**: thay `alert()` bằng màn hình success inline trong `CartSummary`.
+- **VND**: mọi giá hiển thị qua `utils/format.ts` (`Intl vi-VN VND`, tỉ giá quy đổi 1 USD = 25.000đ); `ProductList` có nút retry đúng cho cả 2 chế độ (thunk dispatch / RTK `refetch()`), đếm kết quả và nút "Xoá bộ lọc".

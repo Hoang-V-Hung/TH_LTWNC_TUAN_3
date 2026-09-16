@@ -50,6 +50,7 @@ export const store = configureStore({
           discountPercent: persistedCart.discountPercent,
           discountError: null,
           lastWarning: null,
+          lastSuccess: null,
         },
       }
     : undefined,

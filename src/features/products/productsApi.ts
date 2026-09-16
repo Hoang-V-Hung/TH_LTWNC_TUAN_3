@@ -1,24 +1,40 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import type { Product } from './types';
-import { mockProducts } from './mockData';
 
-// Khuyến khích điểm cộng: Sử dụng RTK Query
+/** Shape thô của FakeStoreAPI (không có tồn kho) */
+interface FakeStoreProduct {
+  id: number;
+  title: string;
+  price: number;
+  description: string;
+  category: string;
+  image: string;
+  rating: { rate: number; count: number };
+}
+
+/**
+ * Gán tồn kho mô phỏng một cách deterministic theo id để demo
+ * badge "sắp hết / hết hàng" mà không cần backend riêng.
+ * id 8 luôn hết hàng để kiểm tra nút disabled.
+ */
+export function attachStock(items: FakeStoreProduct[]): Product[] {
+  return items.map((p) => ({
+    ...p,
+    stock: p.id === 8 ? 0 : ((p.id * 13) % 25) + 3,
+  }));
+}
+
+// RTK Query thật: gọi FakeStoreAPI qua fetchBaseQuery để phát huy
+// cache/dedup/refetch — thay vì queryFn trả mock cứng như trước.
 export const productsApi = createApi({
   reducerPath: 'productsApi',
   baseQuery: fetchBaseQuery({ baseUrl: 'https://fakestoreapi.com/' }),
+  keepUnusedDataFor: 300,
   endpoints: (builder) => ({
-    // Lấy dữ liệu thật từ FakeStoreAPI (hoặc có thể mock nếu cần thiết)
     getProducts: builder.query<Product[], void>({
-      // Dùng queryFn để mock dữ liệu nhằm đảm bảo UI đẹp với mockData đã chuẩn bị sẵn
-      // Nếu muốn dùng API thật, đổi thành: query: () => 'products'
-      queryFn: async () => {
-        try {
-          await new Promise(resolve => setTimeout(resolve, 800)); // Giả lập delay
-          return { data: mockProducts };
-        } catch (error) {
-          return { error: { status: 500, statusText: 'Internal Server Error', data: 'Error fetching products' } };
-        }
-      },
+      query: () => 'products',
+      transformResponse: (response: FakeStoreProduct[]) =>
+        attachStock(response),
     }),
   }),
 });

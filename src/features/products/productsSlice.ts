@@ -1,19 +1,35 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
-import type { ProductsState } from './types';
+import type { Product, ProductsState } from './types';
 import { mockProducts } from './mockData';
+import { attachStock } from './productsApi';
 
-// Yêu cầu bài tập: dùng createAsyncThunk lấy danh sách sản phẩm từ API giả lập
-export const fetchProducts = createAsyncThunk(
+// createAsyncThunk: thử API thật trước, rớt mạng thì fallback mock
+// để bài nộp luôn chạy ổn định khi demo offline.
+export const fetchProducts = createAsyncThunk<Product[], void>(
   'products/fetchProducts',
   async (_, { rejectWithValue }) => {
     try {
-      // Giả lập network delay 800ms
-      await new Promise(resolve => setTimeout(resolve, 800));
-      // Trả về mock data thay vì fetch thật để đảm bảo luôn có data test tốt nhất
-      return mockProducts;
-    } catch (error) {
-      return rejectWithValue('Failed to fetch products');
+      const res = await fetch('https://fakestoreapi.com/products');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as Array<{
+        id: number;
+        title: string;
+        price: number;
+        description: string;
+        category: string;
+        image: string;
+        rating: { rate: number; count: number };
+      }>;
+      return attachStock(data);
+    } catch {
+      try {
+        // Giả lập delay nhẹ khi dùng fallback để skeleton hiển thị mượt
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        return mockProducts;
+      } catch {
+        return rejectWithValue('Không tải được danh sách sản phẩm.');
+      }
     }
   }
 );
@@ -35,6 +51,22 @@ const productsSlice = createSlice({
     },
     setSelectedCategory: (state, action: PayloadAction<string>) => {
       state.selectedCategory = action.payload;
+    },
+    /**
+     * Trừ tồn kho sau khi thanh toán thành công.
+     * Nghiệp vụ: giỏ và danh sách sản phẩm là 2 slice riêng,
+     * checkout phải đồng bộ kho chứ không chỉ xoá giỏ.
+     */
+    decreaseStock: (
+      state,
+      action: PayloadAction<{ id: number; quantity: number }[]>
+    ) => {
+      for (const purchase of action.payload) {
+        const item = state.items.find((i) => i.id === purchase.id);
+        if (item) {
+          item.stock = Math.max(0, item.stock - purchase.quantity);
+        }
+      }
     }
   },
   extraReducers: (builder) => {
@@ -53,6 +85,7 @@ const productsSlice = createSlice({
   },
 });
 
-export const { setSearchQuery, setSelectedCategory } = productsSlice.actions;
+export const { setSearchQuery, setSelectedCategory, decreaseStock } =
+  productsSlice.actions;
 
 export default productsSlice.reducer;
